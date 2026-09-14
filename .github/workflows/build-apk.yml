@@ -1,0 +1,71 @@
+name: Build Ionic Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repository (v4)
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      # 2. Setup Node.js (v4)
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # 3. Install dependencies
+      - name: Install npm dependencies
+        run: npm ci
+
+      # 4. Build web assets
+      - name: Build Ionic application
+        run: npm run build
+
+      # 5. Setup Java (v4)
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      # 6. Add Android platform only if directory doesn't exist
+      - name: Add Android platform
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+
+      # 7. Sync web build to native Android project
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      # 8. Ensure Gradle wrapper has execute permissions
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
+      # 9. Build debug APK
+      - name: Build Android APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      # 10. Copy APK
+      - name: Stage APK artifact
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk IonicGalleryApp.apk
+
+      # 11. Upload artifact (v4)
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: IonicGalleryApp-APK
+          path: IonicGalleryApp.apk
+          if-no-files-found: error
+          retention-days: 30
